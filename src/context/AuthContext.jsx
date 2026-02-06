@@ -24,6 +24,10 @@ export function AuthProvider({ children }) {
       const userData = res.data.data || { email, name: email.split("@")[0] };
       setUser(userData);
       localStorage.setItem("taskmate-user", JSON.stringify(userData));
+      const token = res.data?.token || res.data?.data?.token;
+      if (token) {
+        localStorage.setItem("taskmate-token", token);
+      }
     }
     return res;
   };
@@ -37,6 +41,7 @@ export function AuthProvider({ children }) {
     await api.logout();
     setUser(null);
     localStorage.removeItem("taskmate-user");
+    localStorage.removeItem("taskmate-token");
   };
 
   return (

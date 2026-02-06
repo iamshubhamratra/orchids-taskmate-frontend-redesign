@@ -1,17 +1,30 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+const getAuthHeaders = () => {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("taskmate-token");
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+};
+
 async function request(endpoint, options = {}) {
   const config = {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
       ...options.headers,
     },
     ...options,
   };
 
   const res = await fetch(`${API_BASE}${endpoint}`, config);
-  const data = await res.json();
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -30,7 +43,7 @@ export const api = {
   // Teams
   createTeam: (body) => request("/taskmate/team/createTeam", { method: "POST", body: JSON.stringify(body) }),
   deleteTeam: (body) => request("/taskmate/team/deleteTeam", { method: "POST", body: JSON.stringify(body) }),
-  updateTeam: (body) => request("/taskmate/team/updateTeam", { method: "PUT", body: JSON.stringify(body) }),
+  updateTeam: (body) => request("/taskmate/team/updateTeam", {method: "PATCH", headers: {"Content-Type": "application/json",}, body: JSON.stringify(body)}),
   searchTeam: (body) => request("/taskmate/team/searchTeam", { method: "POST", body: JSON.stringify(body) }),
   listAdminTeams: () => request("/taskmate/team/listAdminTeams", { method: "GET" }),
   listMemberTeams: () => request("/taskmate/team/listMemberTeams", { method: "GET" }),

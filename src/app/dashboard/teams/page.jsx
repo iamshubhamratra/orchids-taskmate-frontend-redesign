@@ -27,7 +27,15 @@ export default function TeamsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [copiedKey, setCopiedKey] = useState(null);
+  const normalizeteamName = (value) => value.trim().toLowerCase();
+  const teamNameExists = (name, ignoreKey = null) => {
+    const normalized = normalizeteamName(name);
+    return [...adminTeams, ...memberTeams].some(
+      (team) => team.teamKey !== ignoreKey && normalizeteamName(team.teamName || "") === normalized,
+    );
+  };
 
   const fetchTeams = useCallback(async () => {
     try {
@@ -40,7 +48,7 @@ export default function TeamsPage() {
         const adminKeys = new Set((adminRes.data?.data || []).map((t) => t.teamKey));
         setMemberTeams((memberRes.data.data || []).filter((t) => !adminKeys.has(t.teamKey)));
       }
-    } catch {}
+    } catch { }
     setLoading(false);
   }, []);
 
@@ -49,6 +57,10 @@ export default function TeamsPage() {
   const handleCreate = async (e) => {
     e.preventDefault();
     setError("");
+    if (teamNameExists(createForm.teamName)) {
+      setError("Team already exists.");
+      return;
+    }
     setCreateLoading(true);
     try {
       const res = await api.createTeam(createForm);
@@ -64,6 +76,7 @@ export default function TeamsPage() {
   };
 
   const handleDelete = async (teamKey) => {
+    setDeleteError("");
     setDeleteLoading(true);
     try {
       const res = await api.deleteTeam({ teamKey });
@@ -71,30 +84,56 @@ export default function TeamsPage() {
         setShowDelete(null);
         setSelectedTeam(null);
         fetchTeams();
+      } else {
+        setDeleteError(res.data?.message || "Failed to delete team");
       }
-    } catch {}
+    } catch {
+      setDeleteError("Network error");
+    }
     setDeleteLoading(false);
   };
 
-  const handleEdit = async (e) => {
-    e.preventDefault();
-    setEditLoading(true);
-    setError("");
-    try {
-      const res = await api.updateTeam({
-        teamKey: showEdit.teamKey,
-        teamName: editForm.teamName,
-        teamDescription: editForm.teamDescription,
-      });
-      if (res.ok) {
-        setShowEdit(null);
-        fetchTeams();
-      } else {
-        setError(res.data?.message || "Failed to update team");
-      }
-    } catch { setError("Network error"); }
-    setEditLoading(false);
+ const handleEdit = async (e) => {
+  e.preventDefault();
+  setEditLoading(true);
+  setError("");
+
+  const payload = {
+    teamKey: showEdit.teamKey,
   };
+
+  // send ONLY if changed
+  if (editForm.teamName.trim() !== showEdit.teamName) {
+    payload.newTeamName = editForm.teamName.trim();
+  }
+
+  if ((editForm.teamDescription || "") !== (showEdit.teamDescription || "")) {
+    payload.newTeamDescription = editForm.teamDescription.trim();
+  }
+
+  // nothing changed
+  if (!payload.newTeamName && !payload.newTeamDescription) {
+    setError("No changes detected");
+    setEditLoading(false);
+    return;
+  }
+
+  try {
+    const res = await api.updateTeam(payload);
+
+    if (res.ok) {
+      setShowEdit(null);
+      fetchTeams();
+    } else {
+      setError(res.data?.message || "Failed to update team");
+    }
+  } catch {
+    setError("Network error");
+  }
+
+  setEditLoading(false);
+};
+
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -184,7 +223,7 @@ export default function TeamsPage() {
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={(e) => { e.stopPropagation(); setShowDelete(team); }}
+                onClick={(e) => { e.stopPropagation(); setDeleteError(""); setShowDelete(team); }}
                 className="rounded-xl p-2.5 text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
               >
                 <Trash2 className="h-4 w-4" />
@@ -500,7 +539,13 @@ export default function TeamsPage() {
       <AnimatePresence>
         {showDelete && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDelete(null)} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowDelete(null); setDeleteError(""); }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            />
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -515,8 +560,18 @@ export default function TeamsPage() {
                 <p className="text-sm text-zinc-400 mt-2">
                   Are you sure you want to delete <strong className="text-white">{showDelete.teamName}</strong>? This action cannot be undone.
                 </p>
+                {deleteError && (
+                  <div className="mt-4 w-full rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                    {deleteError}
+                  </div>
+                )}
                 <div className="flex gap-3 mt-6 w-full">
-                  <button onClick={() => setShowDelete(null)} className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                  <button
+                    onClick={() => { setShowDelete(null); setDeleteError(""); }}
+                    className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-zinc-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
