@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 🔁 Load user from localStorage on first load
   useEffect(() => {
     const saved = localStorage.getItem("taskmate-user");
     if (saved) {
@@ -21,43 +22,47 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
+  // ✅ FIXED LOGIN (cookie + profile fetch)
   const login = async (email, password) => {
     setLoading(true);
 
     try {
+      // 1️⃣ Login (sets cookie)
       const res = await api.login({ email, password });
 
-      // ✅ FIXED: Check both ok and status
-      if (!res.ok || res?.data?.status !== "success") {
-        setLoading(false); 
+      if (!res?.ok || res?.data?.status !== "success") {
         return res;
       }
 
-      // ✅ CORRECT: Access user from nested data
-      if (res.data?.data?.user) {  
-        setUser(res.data.data.user);
-        localStorage.setItem("taskmate-user", JSON.stringify(res.data.data.user));
+      // 2️⃣ Fetch FULL profile (single source of truth)
+      const profileRes = await api.getProfile();
+
+      if (!profileRes?.ok || profileRes?.data?.status !== "Success") {
+        throw new Error("Profile fetch failed");
       }
 
-      setLoading(false); 
+      // 3️⃣ Store full user
+      setUser(profileRes.data.data);
+      localStorage.setItem(
+        "taskmate-user",
+        JSON.stringify(profileRes.data.data)
+      );
+
       return res;
-      
     } catch (err) {
       console.error("Login error:", err);
-      setLoading(false); 
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (data) => {
     setLoading(true);
     try {
-      const res = await api.signup(data);
+      return await api.signup(data);
+    } finally {
       setLoading(false);
-      return res;
-    } catch (err) {
-      setLoading(false);
-      throw err;
     }
   };
 
