@@ -12,7 +12,7 @@ function ForgotPasswordContent() {
   const [step, setStep] = useState(1); // 1=email, 2=otp, 3=newpass, 4=done
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [resetToken, setToken] = useState("");
+  const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,8 +35,8 @@ function ForgotPasswordContent() {
     setLoading(true);
     try {
       const res = await api.verifyOtp({ email, otp });
-      if (res.ok || res.data?.data?.resetToken) {
-        setToken(res.data.data.resetToken);
+      if (res.ok && res.data?.data?.token) {
+        setToken(res.data.data.token);
         setStep(3);
       } else setError(res.data?.message || "Invalid OTP");
     } catch { setError("Network error"); }
@@ -52,7 +52,7 @@ function ForgotPasswordContent() {
     }
     setLoading(true);
     try {
-      const res = await api.setNewPassword({ resetToken, newPassword });
+      const res = await api.setNewPassword({ resetToken:token, newPassword });
       if (res.ok) setStep(4);
       else setError(res.data?.message || "Failed to reset password");
     } catch { setError("Network error"); }
